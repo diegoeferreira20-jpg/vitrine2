@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Vitrine</title><link rel="stylesheet" href="/style.css"><link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#0071e3"><link rel="apple-touch-icon" href="/icon-192.png"></head>
+<body>
+<header><h1>Painel do administrador</h1><p class="sub"><a href="/" target="_blank">Ver vitrine</a></p></header>
+<main class="adm" id="login" hidden>
+  <form class="box" id="lf"><h3>Entrar</h3><input type="password" id="pw" placeholder="Senha" autocomplete="current-password" required><button class="btn">Entrar</button><p class="note" id="ln"></p></form>
+</main>
+<main class="adm" id="panel" hidden>
+  <form class="box" id="sf"><h3>Configurações</h3>
+    <input id="st" placeholder="Título da vitrine"><input id="sw" inputmode="numeric" placeholder="WhatsApp com DDI+DDD, ex: 5511999999999">
+    <button class="btn">Salvar configurações</button></form>
+  <form class="box" id="pf"><h3 id="ft">Novo produto</h3>
+    <input name="name" placeholder="Nome (ex: iPhone 15 Pro 256GB)" required><input name="price" placeholder="Preço (opcional, ex: R$ 5.999)">
+    <textarea name="description" rows="4" placeholder="Descrição (cor, memória, bateria, estado...)"></textarea>
+    <div class="thumbs" id="old"></div>
+    <input type="file" name="images" id="fi" accept="image/jpeg,image/png,image/webp" multiple>
+    <div class="thumbs" id="new"></div>
+    <button class="btn" id="sb">Adicionar produto</button>
+    <button type="button" class="btn ghost" id="cancel" hidden>Cancelar edição</button>
+    <p class="note" id="pn"></p></form>
+  <form class="box" id="lkf"><h3>🔗 Gerar link para cliente</h3>
+    <input id="ls" placeholder="Nome do link (ex: maria  →  /v/maria)">
+    <input id="lg" placeholder="Mensagem de boas-vindas (ex: Olá, Maria! Separei estes para você)">
+    <input id="lw" inputmode="numeric" placeholder="WhatsApp só deste link (opcional)">
+    <p class="note">Produtos do link (nenhum marcado = todos):</p>
+    <div id="lp"></div>
+    <button class="btn">Gerar link</button>
+    <button type="button" class="btn ghost" id="lc" hidden>Cancelar edição</button>
+    <p class="note" id="ln2"></p></form>
+  <div class="box" id="ll"></div>
+  <div class="box" id="list"></div>
+  <button class="btn ghost" id="out">Sair</button>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const h=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a)k==='class'?e.className=a[k]:e.setAttribute(k,a[k]);c.flat().forEach(x=>x!=null&&e.append(x.nodeType?x:document.createTextNode(x)));return e};
+async function api(url,opt){const r=await fetch(url,opt);const j=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(new Error(j.error||'Erro'),{status:r.status});return j}
+const json=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+let products=[],editing=null,removed=[];
+
+async function boot(){
+  try{await api('/api/me');$('#login').hidden=true;$('#panel').hidden=false;await load()}
+  catch{$('#login').hidden=false;$('#panel').hidden=true}
+}
+async function load(){
+  const [s,p]=await Promise.all([api('/api/settings'),api('/api/products')]);
+  $('#st').value=s.title;$('#sw').value=s.whatsapp;products=p;renderList();renderLp();await loadLinks();
+}
+function renderList(){
+  const l=$('#list');l.innerHTML='';l.append(h('h3',{},`Produtos (${products.length})`));
+  products.forEach(p=>{
+    const e=h('button',{class:'btn ghost sm'},'Editar'),d=h('button',{class:'btn red sm'},'Excluir');
+    e.onclick=()=>startEdit(p);
+    d.onclick=async()=>{if(!confirm(`Excluir "${p.name}"?`))return;await api('/api/products/'+p.id,{method:'DELETE'});load()};
+    l.append(h('div',{class:'row'},p.images[0]?h('img',{src:p.images[0].url,alt:''}):h('span',{},'📱'),h('b',{},p.name),e,d));
+  });
+}
+function renderOld(p){
+  const o=$('#old');o.innerHTML='';
+  if(!p)return;
+  p.images.filter(i=>!removed.includes(i.id)).forEach(i=>{
+    const x=h('button',{type:'button'},'×');x.onclick=()=>{removed.push(i.id);renderOld(p)};
+    o.append(h('div',{class:'pv'},h('img',{src:i.url,alt:''}),x));
+  });
+}
+function startEdit(p){
+  editing=p;removed=[];const f=$('#pf');
+  f.name.value=p.name;f.price.value=p.price;f.description.value=p.description;
+  $('#ft').textContent='Editar produto';$('#sb').textContent='Salvar produto';$('#cancel').hidden=false;
+  renderOld(p);f.scrollIntoView({behavior:'smooth'});
+}
+function resetForm(){editing=null;removed=[];$('#pf').reset();$('#old').innerHTML='';$('#new').innerHTML='';
+  $('#ft').textContent='Novo produto';$('#sb').textContent='Adicionar produto';$('#cancel').hidden=true}
+$('#cancel').onclick=resetForm;
+$('#fi').onchange=e=>{const n=$('#new');n.innerHTML='';[...e.target.files].forEach(f=>n.append(h('div',{class:'pv'},h('img',{src:URL.createObjectURL(f),alt:''}))))};
+
+$('#lf').onsubmit=async e=>{e.preventDefault();
+  try{await api('/api/login',json('POST',{password:$('#pw').value}));$('#pw').value='';boot()}catch(x){$('#ln').textContent=x.message}};
+$('#out').onclick=async()=>{await api('/api/logout',{method:'POST'});boot()};
+$('#sf').onsubmit=async e=>{e.preventDefault();
+  await api('/api/settings',json('PUT',{title:$('#st').value,whatsapp:$('#sw').value}));$('#pn').textContent='Configurações salvas.'};
+$('#pf').onsubmit=async e=>{e.preventDefault();
+  const fd=new FormData(e.target);if(editing)fd.append('remove',JSON.stringify(removed));
+  $('#pn').textContent='Salvando...';
+  try{await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
+    resetForm();$('#pn').textContent='Produto salvo! Já está na vitrine.';load()}
+  catch(x){$('#pn').textContent=x.message;if(x.status===401)boot()}};
+let links=[];
+const origin=location.origin;
+function renderLp(sel=[]){
+  const d=$('#lp');d.innerHTML='';
+  products.forEach(p=>{const c=h('input',{type:'checkbox',value:p.id,style:'width:auto'});c.checked=sel.includes(p.id);
+    d.append(h('label',{style:'display:flex;gap:8px;align-items:center;padding:3px 0'},c,p.name))});
+}
+async function loadLinks(){links=await api('/api/links');renderLinks()}
+function renderLinks(){
+  const l=$('#ll');l.innerHTML='';l.append(h('h3',{},`Links criados (${links.length})`));
+  links.forEach(k=>{
+    const url=origin+'/v/'+k.slug;
+    const cp=h('button',{class:'btn ghost sm'},'Copiar'),ed=h('button',{class:'btn ghost sm'},'Editar'),del=h('button',{class:'btn red sm'},'Excluir');
+    const sh=navigator.share?h('button',{class:'btn sm'},'Enviar'):null;
+    cp.onclick=async()=>{try{await navigator.clipboard.writeText(url);cp.textContent='Copiado ✓'}catch{prompt('Copie o link:',url)}};
+    if(sh)sh.onclick=()=>navigator.share({url,text:k.greeting||''}).catch(()=>{});
+    ed.onclick=()=>{$('#ls').value=k.slug;$('#lg').value=k.greeting;$('#lw').value=k.whatsapp;
+      renderLp(k.product_ids?k.product_ids.split(',').map(Number):[]);$('#lc').hidden=false;$('#lkf').scrollIntoView({behavior:'smooth'})};
+    del.onclick=async()=>{if(!confirm(`Excluir o link "${k.slug}"? Quem tiver esse link deixa de ver a vitrine.`))return;await api('/api/links/'+k.slug,{method:'DELETE'});loadLinks()};
+    l.append(h('div',{class:'row'},h('b',{},'/v/'+k.slug),
+      h('span',{class:'note'},`${k.views} visitas · ${k.product_ids?k.product_ids.split(',').length+' produto(s)':'todos os produtos'}`),sh,cp,ed,del));
+  });
+}
+$('#lc').onclick=()=>{$('#lkf').reset();renderLp();$('#lc').hidden=true};
+$('#lkf').onsubmit=async e=>{e.preventDefault();
+  const ids=[...document.querySelectorAll('#lp input:checked')].map(i=>+i.value);
+  try{const r=await api('/api/links',json('POST',{slug:$('#ls').value,greeting:$('#lg').value,whatsapp:$('#lw').value,product_ids:ids}));
+    $('#lkf').reset();renderLp();$('#lc').hidden=true;$('#ln2').textContent='Link pronto: '+origin+'/v/'+r.slug;await loadLinks()}
+  catch(x){$('#ln2').textContent=x.message}};
+boot();
+</script></body></html>
