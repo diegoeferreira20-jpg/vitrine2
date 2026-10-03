@@ -4,7 +4,7 @@
 <title>NCR iPhone</title><meta name="theme-color" content="#000000">
 <!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em um aparelho para ver fotos e parcelamento</p></header>
+<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Explore nosso catálogo e encontre o ceular que mais combina com comvê</p></header>
 <main id="grid" class="grid"></main>
 <footer>NCR iPhone</footer>
 <div id="modal" class="modal" hidden></div>
@@ -125,14 +125,14 @@ function openM(p,phone){
   const x=h('button',{class:'x','aria-label':'Fechar'},'×');x.onclick=closeM;
   const info=h('div',{class:'info'},h('h2',{},p.name),p.price?h('div',{class:'big'},p.price):null,
     p.description?h('p',{class:'desc full'},p.description):null,
-    pay.length?h('div',{},h('h4',{},'💳 Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
+    pay.length?h('div',{},h('h4',{},'💳 Formas de Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
     addBtn(p),waBtn(p,phone));
   modal.replaceChildren(h('div',{class:'sheet'},x,left,info));
   modal.hidden=false;document.body.style.overflow='hidden';refresh();
 }
 function card(p,phone){
   const gal=h('div',{class:'gal'},p.images[0]?ph(p.images[0],p.name):h('div',{class:'noimg'},'📱'));
-  if(p.images.length>1)gal.append(h('span',{class:'more'},'📷 '+p.images.length));
+  if(p.images.length>1)gal.append(h('span',{class:'more'},p.images.length));
   if(p.price)gal.append(h('span',{class:'price'},p.price));
   const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver fotos e parcelamento ›'),
     h('div',{class:'acts'},addBtn(p),waBtn(p,phone,true))));
