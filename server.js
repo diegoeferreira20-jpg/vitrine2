@@ -20,6 +20,7 @@ INSERT OR IGNORE INTO settings VALUES('title','NCR iPhone'),('whatsapp','');
 `);
 
 db.prepare("UPDATE settings SET value='NCR iPhone' WHERE key='title' AND value='Vitrine de iPhones'").run();
+if (!db.prepare('PRAGMA table_info(products)').all().some(c => c.name === 'installments')) db.exec("ALTER TABLE products ADD COLUMN installments TEXT DEFAULT ''");
 // ---------- Autenticação (cookie assinado) ----------
 const sign = s => crypto.createHmac('sha256', SECRET).update(s).digest('hex');
 const hash = s => crypto.createHash('sha256').update(String(s)).digest();
@@ -33,7 +34,7 @@ const auth = (req, res, next) => valid(getSid(req)) ? next() : res.status(401).j
 const EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
 const upload = multer({
   storage: multer.diskStorage({ destination: UP, filename: (r, f, cb) => cb(null, crypto.randomBytes(12).toString('hex') + EXT[f.mimetype]) }),
-  limits: { fileSize: 8 * 1024 * 1024, files: 8 },
+  limits: { fileSize: 8 * 1024 * 1024, files: 12 },
   fileFilter: (r, f, cb) => EXT[f.mimetype] ? cb(null, true) : cb(new Error('Use fotos JPG, PNG ou WebP.'))
 });
 const rmFile = n => fs.unlink(path.join(UP, n), () => {});
@@ -79,34 +80,35 @@ app.put('/api/settings', auth, (req, res) => {
   res.json(settings());
 });
 
-app.post('/api/products', auth, upload.array('images', 8), (req, res) => {
-  const { name = '', description = '', price = '' } = req.body;
+app.post('/api/products', auth, upload.array('images', 12), (req, res) => {
+  const { name = '', description = '', price = '', installments = '' } = req.body;
   if (!name.trim()) { rmUploaded(req.files); return res.status(400).json({ error: 'Informe o nome do produto.' }); }
-  const id = db.prepare('INSERT INTO products(name,description,price) VALUES(?,?,?)').run(name.trim(), description.trim(), price.trim()).lastInsertRowid;
+  const id = db.prepare('INSERT INTO products(name,description,price,installments) VALUES(?,?,?,?)').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600)).lastInsertRowid;
   addImgs(id, req.files);
   res.json({ id });
 });
 
 app.post('/api/products/import', auth, (req, res) => {
   const blocks = String(req.body.text || '').split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length);
-  const ins = db.prepare('INSERT INTO products(name,description,price) VALUES(?,?,?)');
+  const ins = db.prepare('INSERT INTO products(name,description,price,installments) VALUES(?,?,?,?)');
   let count = 0;
   db.transaction(() => blocks.slice(0, 200).forEach(lines => {
     const name = lines.shift().replace(/^(?:[-•*#]+|\d+[.)])\s*/, '').slice(0, 120);
     if (!name) return;
     const pi = lines.findIndex(l => /^(r\$|pre[çc]o|valor)/i.test(l));
     const price = pi >= 0 ? lines.splice(pi, 1)[0].replace(/^(pre[çc]o|valor)\s*:?\s*/i, '').slice(0, 40) : '';
-    ins.run(name, lines.join('\n').slice(0, 2000), price); count++;
+    const inst = lines.filter(l => /^(parcel|\d{1,2}\s*x\b)/i.test(l));
+    ins.run(name, lines.filter(l => !inst.includes(l)).join('\n').slice(0, 2000), price, inst.join('\n').slice(0, 600)); count++;
   }))();
   res.json({ count });
 });
 
-app.put('/api/products/:id', auth, upload.array('images', 8), (req, res) => {
+app.put('/api/products/:id', auth, upload.array('images', 12), (req, res) => {
   const id = +req.params.id;
   if (!db.prepare('SELECT 1 FROM products WHERE id=?').get(id)) { rmUploaded(req.files); return res.status(404).json({ error: 'Produto não encontrado.' }); }
-  const { name = '', description = '', price = '' } = req.body;
+  const { name = '', description = '', price = '', installments = '' } = req.body;
   if (!name.trim()) { rmUploaded(req.files); return res.status(400).json({ error: 'Informe o nome do produto.' }); }
-  db.prepare('UPDATE products SET name=?,description=?,price=? WHERE id=?').run(name.trim(), description.trim(), price.trim(), id);
+  db.prepare('UPDATE products SET name=?,description=?,price=?,installments=? WHERE id=?').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600), id);
   let remove = []; try { remove = JSON.parse(req.body.remove || '[]'); } catch {}
   remove.forEach(imgId => {
     const r = db.prepare('SELECT filename FROM images WHERE id=? AND product_id=?').get(+imgId, id);

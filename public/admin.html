@@ -12,15 +12,16 @@
     <input id="st" placeholder="Título da vitrine"><input id="sw" inputmode="numeric" placeholder="WhatsApp com DDI+DDD, ex: 5511999999999">
     <button class="btn">Salvar configurações</button></form>
   <form class="box" id="imf"><h3>📋 Importar lista de produtos</h3>
-    <p class="note">Cole sua lista, separando cada aparelho com uma linha em branco: 1ª linha = nome, linha com "R$" = preço, o resto = descrição. Depois toque em "Editar" em cada um para anexar as fotos.</p>
+    <p class="note">Cole sua lista, separando cada aparelho com uma linha em branco: 1ª linha = nome, linha com "R$" = preço, linhas começando com "12x" ou "Parcelamento" = parcelamento, o resto = descrição. Depois toque em "Editar" em cada um para anexar as fotos.</p>
     <textarea id="imt" rows="8" placeholder="iPhone 15 Pro 256GB&#10;R$ 5.999&#10;Titânio natural, bateria 100%, com caixa&#10;&#10;iPhone 13 128GB&#10;R$ 3.299&#10;Azul, bateria 89%"></textarea>
     <button class="btn">Importar lista</button><p class="note" id="imn"></p></form>
   <form class="box" id="pf"><h3 id="ft">Novo produto</h3>
     <input name="name" placeholder="Nome (ex: iPhone 15 Pro 256GB)" required><input name="price" placeholder="Preço (opcional, ex: R$ 5.999)">
     <textarea name="description" rows="4" placeholder="Descrição (cor, memória, bateria, estado...)"></textarea>
+    <textarea name="installments" rows="3" placeholder="Parcelamento (uma opção por linha)&#10;10x de R$ 650 sem juros&#10;12x de R$ 560 com juros"></textarea>
     <div class="thumbs" id="old"></div>
-    <input type="file" name="images" id="fi" accept="image/jpeg,image/png,image/webp" multiple>
-    <div class="thumbs" id="new"></div>
+    <label class="btn ghost" for="fi" style="text-align:center">📷 Adicionar fotos (pode escolher várias)</label><input type="file" id="fi" accept="image/*" multiple hidden>
+    <div class="thumbs" id="new"></div><p class="note" id="cnt"></p>
     <button class="btn" id="sb">Adicionar produto</button>
     <button type="button" class="btn ghost" id="cancel" hidden>Cancelar edição</button>
     <p class="note" id="pn"></p></form>
@@ -70,15 +71,20 @@ function renderOld(p){
   });
 }
 function startEdit(p){
-  editing=p;removed=[];const f=$('#pf');
-  f.name.value=p.name;f.price.value=p.price;f.description.value=p.description;
+  editing=p;removed=[];pending=[];renderNew();const f=$('#pf');
+  f.name.value=p.name;f.price.value=p.price;f.description.value=p.description;f.installments.value=p.installments||'';
   $('#ft').textContent='Editar produto';$('#sb').textContent='Salvar produto';$('#cancel').hidden=false;
   renderOld(p);f.scrollIntoView({behavior:'smooth'});
 }
-function resetForm(){editing=null;removed=[];$('#pf').reset();$('#old').innerHTML='';$('#new').innerHTML='';
+function resetForm(){editing=null;removed=[];$('#pf').reset();$('#old').innerHTML='';pending=[];renderNew();
   $('#ft').textContent='Novo produto';$('#sb').textContent='Adicionar produto';$('#cancel').hidden=true}
 $('#cancel').onclick=resetForm;
-$('#fi').onchange=e=>{const n=$('#new');n.innerHTML='';[...e.target.files].forEach(f=>n.append(h('div',{class:'pv'},h('img',{src:URL.createObjectURL(f),alt:''}))))};
+let pending=[];
+function renderNew(){const n=$('#new');n.innerHTML='';
+  pending.forEach((o,k)=>{const x=h('button',{type:'button'},'×');x.onclick=()=>{URL.revokeObjectURL(o.u);pending.splice(k,1);renderNew()};
+    n.append(h('div',{class:'pv'},h('img',{src:o.u,alt:''}),x))});
+  $('#cnt').textContent=pending.length?pending.length+' foto(s) nova(s) para enviar':''}
+$('#fi').onchange=e=>{[...e.target.files].forEach(f=>pending.push({f,u:URL.createObjectURL(f)}));e.target.value='';renderNew()};
 
 $('#lf').onsubmit=async e=>{e.preventDefault();
   try{await api('/api/login',json('POST',{password:$('#pw').value}));$('#pw').value='';boot()}catch(x){$('#ln').textContent=x.message}};
@@ -86,7 +92,7 @@ $('#out').onclick=async()=>{await api('/api/logout',{method:'POST'});boot()};
 $('#sf').onsubmit=async e=>{e.preventDefault();
   await api('/api/settings',json('PUT',{title:$('#st').value,whatsapp:$('#sw').value}));$('#pn').textContent='Configurações salvas.'};
 $('#pf').onsubmit=async e=>{e.preventDefault();
-  const fd=new FormData(e.target);fd.delete('images');for(const f of $('#fi').files)fd.append('images',await resize(f));if(editing)fd.append('remove',JSON.stringify(removed));
+  const fd=new FormData(e.target);fd.delete('images');for(const o of pending)fd.append('images',await resize(o.f));if(editing)fd.append('remove',JSON.stringify(removed));
   $('#pn').textContent='Salvando...';
   try{await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
     resetForm();$('#pn').textContent='Produto salvo! Já está na vitrine.';load()}

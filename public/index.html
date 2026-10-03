@@ -4,26 +4,48 @@
 <title>NCR iPhone</title><meta name="theme-color" content="#1b2036">
 <!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em "Tenho interesse" para falar comigo no WhatsApp</p></header>
+<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em um aparelho para ver fotos e parcelamento</p></header>
 <main id="grid" class="grid"></main>
 <footer>NCR iPhone</footer>
+<div id="modal" class="modal" hidden></div>
 <script>
 const h=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a)k==='class'?e.className=a[k]:e.setAttribute(k,a[k]);c.flat().forEach(x=>x!=null&&e.append(x.nodeType?x:document.createTextNode(x)));return e};
-function card(p,phone){
-  let gal;
-  if(p.images.length){
-    const sl=h('div',{class:'slides'},p.images.map(i=>h('img',{src:i.url,alt:p.name,loading:'lazy'})));
-    gal=h('div',{class:'gal'},sl);
-    if(p.images.length>1){
-      const dots=h('div',{class:'dots'},p.images.map((_,k)=>{const d=h('i',{class:k?'':'on'});d.onclick=()=>sl.scrollTo({left:k*sl.clientWidth,behavior:'smooth'});return d}));
-      sl.onscroll=()=>{const k=Math.round(sl.scrollLeft/sl.clientWidth);[...dots.children].forEach((d,j)=>d.className=j===k?'on':'')};
-      gal.append(dots);
-    }
-  }else gal=h('div',{class:'gal'},h('div',{class:'noimg'},'📱'));
-  if(p.price)gal.append(h('span',{class:'price'},p.price));
+const modal=document.getElementById('modal');
+function closeM(){modal.hidden=true;modal.replaceChildren();document.body.style.overflow=''}
+modal.onclick=e=>{if(e.target===modal)closeM()};
+addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
+function ph(i,name){const d=h('div',{class:'ph'},h('img',{src:i.url,alt:name,loading:'lazy'}));d.style.setProperty('--bg',`url("${i.url}")`);return d}
+function waBtn(p,phone){
+  if(!phone)return null;
   const msg=`Olá! Tenho interesse no ${p.name}${p.price?` (${p.price})`:''}. Poderia me passar mais informações?`;
-  const wa=phone?h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},'💬 Tenho interesse'):null;
-  return h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),wa));
+  return h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},'💬 Tenho interesse');
+}
+function openM(p,phone){
+  const imgs=p.images;let left;
+  if(imgs.length){
+    const sl=h('div',{class:'slides'},imgs.map(i=>ph(i,p.name)));left=h('div',{},sl);
+    if(imgs.length>1){
+      const th=h('div',{class:'thumbs2'},imgs.map((i,k)=>{const t=h('img',{src:i.url,alt:'',class:k?'':'on'});t.onclick=()=>sl.scrollTo({left:k*sl.clientWidth,behavior:'smooth'});return t}));
+      sl.onscroll=()=>{const k=Math.round(sl.scrollLeft/sl.clientWidth);[...th.children].forEach((t,j)=>t.className=j===k?'on':'')};
+      left.append(th);
+    }
+  }else left=h('div',{class:'noimg'},'📱');
+  const pay=(p.installments||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const x=h('button',{class:'x','aria-label':'Fechar'},'×');x.onclick=closeM;
+  const info=h('div',{class:'info'},h('h2',{},p.name),p.price?h('div',{class:'big'},p.price):null,
+    p.description?h('p',{class:'desc full'},p.description):null,
+    pay.length?h('div',{},h('h4',{},'💳 Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
+    waBtn(p,phone));
+  modal.replaceChildren(h('div',{class:'sheet'},x,left,info));
+  modal.hidden=false;document.body.style.overflow='hidden';
+}
+function card(p,phone){
+  const gal=h('div',{class:'gal'},p.images[0]?ph(p.images[0],p.name):h('div',{class:'noimg'},'📱'));
+  if(p.images.length>1)gal.append(h('span',{class:'more'},'📷 '+p.images.length));
+  if(p.price)gal.append(h('span',{class:'price'},p.price));
+  const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver fotos e parcelamento ›'),waBtn(p,phone)));
+  c.onclick=e=>{if(!e.target.closest('a'))openM(p,phone)};
+  return c;
 }
 (async()=>{
   const slug=location.pathname.startsWith('/v/')?location.pathname.slice(3):'';
