@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NCR iPhone</title><meta name="theme-color" content="#1b2036">
+<title>NCR iPhone</title><meta name="theme-color" content="#000000">
 <!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
 <header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em um aparelho para ver fotos e parcelamento</p></header>
@@ -11,10 +11,11 @@
 <script>
 const h=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a)k==='class'?e.className=a[k]:e.setAttribute(k,a[k]);c.flat().forEach(x=>x!=null&&e.append(x.nodeType?x:document.createTextNode(x)));return e};
 const modal=document.getElementById('modal');
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.1});
 function closeM(){modal.hidden=true;modal.replaceChildren();document.body.style.overflow=''}
 modal.onclick=e=>{if(e.target===modal)closeM()};
 addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
-function ph(i,name){const d=h('div',{class:'ph'},h('img',{src:i.url,alt:name,loading:'lazy'}));d.style.setProperty('--bg',`url("${i.url}")`);return d}
+function ph(i,name){const im=h('img',{src:i.url,alt:name,loading:'lazy'}),ok=()=>im.classList.add('ld');im.complete&&im.naturalWidth?ok():(im.onload=ok,im.onerror=ok);const d=h('div',{class:'ph'},im);d.style.setProperty('--bg',`url("${i.url}")`);return d}
 function waBtn(p,phone){
   if(!phone)return null;
   const msg=`Olá! Tenho interesse no ${p.name}${p.price?` (${p.price})`:''}. Poderia me passar mais informações?`;
@@ -56,6 +57,6 @@ function card(p,phone){
   document.getElementById('title').textContent=document.title=v.title||'NCR iPhone';
   if(v.greeting)document.getElementById('sub').textContent=v.greeting;
   if(!v.products.length)g.replaceWith(h('p',{class:'empty'},'Nenhum produto disponível no momento.'));
-  else v.products.forEach(p=>g.append(card(p,v.whatsapp)));
+  else v.products.forEach((p,i)=>{const c=card(p,v.whatsapp);c.classList.add('reveal');c.style.setProperty('--d',(i%6)*80+'ms');g.append(c);io.observe(c)});
 })();
 </script></body></html>
