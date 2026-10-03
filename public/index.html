@@ -1,19 +1,29 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vitrine de iPhones</title><!--OG--><link rel="stylesheet" href="/style.css"></head>
+<title>NCR iPhone</title><meta name="theme-color" content="#1b2036">
+<!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<header><h1 id="title">Vitrine de iPhones</h1><p class="sub" id="sub">Toque em "Tenho interesse" para falar comigo no WhatsApp</p></header>
+<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em "Tenho interesse" para falar comigo no WhatsApp</p></header>
 <main id="grid" class="grid"></main>
+<footer>NCR iPhone</footer>
 <script>
 const h=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a)k==='class'?e.className=a[k]:e.setAttribute(k,a[k]);c.flat().forEach(x=>x!=null&&e.append(x.nodeType?x:document.createTextNode(x)));return e};
 function card(p,phone){
-  const main=p.images.length?h('img',{class:'main',alt:p.name,src:p.images[0].url}):h('div',{class:'noimg'},'📱');
-  const th=h('div',{class:'thumbs'});
-  if(p.images.length>1)p.images.forEach(i=>{const t=h('img',{src:i.url,alt:''});t.onclick=()=>main.src=i.url;th.append(t)});
+  let gal;
+  if(p.images.length){
+    const sl=h('div',{class:'slides'},p.images.map(i=>h('img',{src:i.url,alt:p.name,loading:'lazy'})));
+    gal=h('div',{class:'gal'},sl);
+    if(p.images.length>1){
+      const dots=h('div',{class:'dots'},p.images.map((_,k)=>{const d=h('i',{class:k?'':'on'});d.onclick=()=>sl.scrollTo({left:k*sl.clientWidth,behavior:'smooth'});return d}));
+      sl.onscroll=()=>{const k=Math.round(sl.scrollLeft/sl.clientWidth);[...dots.children].forEach((d,j)=>d.className=j===k?'on':'')};
+      gal.append(dots);
+    }
+  }else gal=h('div',{class:'gal'},h('div',{class:'noimg'},'📱'));
+  if(p.price)gal.append(h('span',{class:'price'},p.price));
   const msg=`Olá! Tenho interesse no ${p.name}${p.price?` (${p.price})`:''}. Poderia me passar mais informações?`;
   const wa=phone?h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},'💬 Tenho interesse'):null;
-  return h('article',{class:'card'},main,th,h('div',{class:'body'},h('h2',{},p.name),p.price?h('div',{class:'price'},p.price):null,h('p',{class:'desc'},p.description),wa));
+  return h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),wa));
 }
 (async()=>{
   const slug=location.pathname.startsWith('/v/')?location.pathname.slice(3):'';
@@ -21,7 +31,7 @@ function card(p,phone){
   const g=document.getElementById('grid');
   if(!r.ok){g.replaceWith(h('p',{class:'empty'},'Link inválido ou removido.'));return}
   const v=await r.json();
-  document.getElementById('title').textContent=document.title=v.title||'Vitrine de iPhones';
+  document.getElementById('title').textContent=document.title=v.title||'NCR iPhone';
   if(v.greeting)document.getElementById('sub').textContent=v.greeting;
   if(!v.products.length)g.replaceWith(h('p',{class:'empty'},'Nenhum produto disponível no momento.'));
   else v.products.forEach(p=>g.append(card(p,v.whatsapp)));

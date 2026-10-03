@@ -16,9 +16,10 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS products(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT DEFAULT '', price TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS images(id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE, filename TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
-INSERT OR IGNORE INTO settings VALUES('title','Vitrine de iPhones'),('whatsapp','');
+INSERT OR IGNORE INTO settings VALUES('title','NCR iPhone'),('whatsapp','');
 `);
 
+db.prepare("UPDATE settings SET value='NCR iPhone' WHERE key='title' AND value='Vitrine de iPhones'").run();
 // ---------- Autenticação (cookie assinado) ----------
 const sign = s => crypto.createHmac('sha256', SECRET).update(s).digest('hex');
 const hash = s => crypto.createHash('sha256').update(String(s)).digest();
@@ -73,7 +74,7 @@ app.get('/api/me', auth, (req, res) => res.json({ ok: true }));
 // admin
 app.put('/api/settings', auth, (req, res) => {
   const up = db.prepare('INSERT OR REPLACE INTO settings VALUES(?,?)');
-  up.run('title', String(req.body.title || '').trim().slice(0, 80) || 'Vitrine de iPhones');
+  up.run('title', String(req.body.title || '').trim().slice(0, 80) || 'NCR iPhone');
   up.run('whatsapp', String(req.body.whatsapp || '').replace(/\D/g, ''));
   res.json(settings());
 });
@@ -84,6 +85,20 @@ app.post('/api/products', auth, upload.array('images', 8), (req, res) => {
   const id = db.prepare('INSERT INTO products(name,description,price) VALUES(?,?,?)').run(name.trim(), description.trim(), price.trim()).lastInsertRowid;
   addImgs(id, req.files);
   res.json({ id });
+});
+
+app.post('/api/products/import', auth, (req, res) => {
+  const blocks = String(req.body.text || '').split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length);
+  const ins = db.prepare('INSERT INTO products(name,description,price) VALUES(?,?,?)');
+  let count = 0;
+  db.transaction(() => blocks.slice(0, 200).forEach(lines => {
+    const name = lines.shift().replace(/^(?:[-•*#]+|\d+[.)])\s*/, '').slice(0, 120);
+    if (!name) return;
+    const pi = lines.findIndex(l => /^(r\$|pre[çc]o|valor)/i.test(l));
+    const price = pi >= 0 ? lines.splice(pi, 1)[0].replace(/^(pre[çc]o|valor)\s*:?\s*/i, '').slice(0, 40) : '';
+    ins.run(name, lines.join('\n').slice(0, 2000), price); count++;
+  }))();
+  res.json({ count });
 });
 
 app.put('/api/products/:id', auth, upload.array('images', 8), (req, res) => {
