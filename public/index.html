@@ -11,16 +11,104 @@
 <script>
 const h=(t,a={},...c)=>{const e=document.createElement(t);for(const k in a)k==='class'?e.className=a[k]:e.setAttribute(k,a[k]);c.flat().forEach(x=>x!=null&&e.append(x.nodeType?x:document.createTextNode(x)));return e};
 const modal=document.getElementById('modal');
+const cartEl=h('div',{class:'modal cartm',hidden:''});
+document.body.append(cartEl);
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.1});
 function closeM(){modal.hidden=true;modal.replaceChildren();document.body.style.overflow=''}
 modal.onclick=e=>{if(e.target===modal)closeM()};
-addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
+cartEl.onclick=e=>{if(e.target===cartEl)closeCart()};
+addEventListener('keydown',e=>{if(e.key==='Escape'){cartEl.hidden?closeM():closeCart()}});
 function ph(i,name){const im=h('img',{src:i.url,alt:name,loading:'lazy'}),ok=()=>im.classList.add('ld');im.complete&&im.naturalWidth?ok():(im.onload=ok,im.onerror=ok);const d=h('div',{class:'ph'},im);d.style.setProperty('--bg',`url("${i.url}")`);return d}
 const WA='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>';
-function waBtn(p,phone){
+const CART_SVG='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0020 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>';
+
+/* ---------- Carrinho ---------- */
+const slug=location.pathname.startsWith('/v/')?location.pathname.slice(3):'';
+const KEY='cart:'+slug;
+let PHONE='',CATALOG=[],cart=[],fab=null;
+const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
+const saveCart=()=>store.set(KEY,JSON.stringify(cart));
+const num=s=>{const m=String(s||'').match(/\d[\d.]*(?:,\d{1,2})?/);if(!m)return null;const t=m[0];
+  const n=/^\d+\.\d{1,2}$/.test(t)?parseFloat(t):parseFloat(t.replace(/\./g,'').replace(',','.'));return isNaN(n)?null:n};
+const brl=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const count=()=>cart.reduce((a,i)=>a+i.qty,0);
+function total(){
+  if(!cart.length)return null;
+  let t=0;for(const i of cart){const n=num(i.price);if(n==null)return null;t+=n*i.qty}
+  return t;
+}
+let tt;
+function toast(m){let t=document.querySelector('.toast');if(!t){t=h('div',{class:'toast',role:'status'});document.body.append(t)}
+  t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1600)}
+function waLink(name){
+  const lines=cart.map(i=>`• ${i.qty}x ${i.name}${i.price?` - ${i.price}`:''}`);
+  const t=total();
+  let msg=`Olá! Tenho interesse nos seguintes aparelhos:\n\n${lines.join('\n')}`;
+  if(t!=null)msg+=`\n\nTotal: ${brl(t)}`;
+  if((name||'').trim())msg+=`\n\nMeu nome: ${name.trim()}`;
+  msg+='\n\nPoderia me passar mais informações?';
+  return `https://wa.me/${PHONE}?text=${encodeURIComponent(msg)}`;
+}
+function refresh(){
+  if(fab){const b=fab.querySelector('.bdg'),n=count();b.textContent=n;b.hidden=!n}
+  document.querySelectorAll('.add').forEach(b=>{
+    const it=cart.find(c=>c.id==b.dataset.pid);
+    b.textContent=it?`✓ No carrinho (${it.qty})`:'Adicionar ao carrinho';b.classList.toggle('in',!!it)});
+  if(!cartEl.hidden)renderCart();
+}
+function addToCart(p){
+  const it=cart.find(c=>c.id===p.id);
+  if(it)it.qty=Math.min(99,it.qty+1);
+  else cart.push({id:p.id,name:p.name,price:p.price||'',img:p.images[0]?.url||'',qty:1});
+  saveCart();refresh();toast('Adicionado ao carrinho');
+}
+function addBtn(p){
+  const b=h('button',{class:'btn add',type:'button','data-pid':p.id},'Adicionar ao carrinho');
+  b.onclick=e=>{e.stopPropagation();addToCart(p)};
+  return b;
+}
+function setQty(id,d){const it=cart.find(c=>c.id===id);if(!it)return;it.qty=Math.max(1,Math.min(99,it.qty+d));saveCart();refresh()}
+function rmItem(id){cart=cart.filter(c=>c.id!==id);saveCart();refresh()}
+function openCart(){renderCart();cartEl.hidden=false;document.body.style.overflow='hidden'}
+function closeCart(){cartEl.hidden=true;cartEl.replaceChildren();if(modal.hidden)document.body.style.overflow=''}
+function renderCart(){
+  const x=h('button',{class:'x',type:'button','aria-label':'Fechar'},'×');x.onclick=closeCart;
+  const head=h('div',{class:'chead'},h('h2',{},'Seu carrinho'));
+  if(!cart.length){
+    cartEl.replaceChildren(h('div',{class:'csheet'},x,head,
+      h('div',{class:'cempty'},h('div',{class:'big0'},'🛒'),h('p',{},'Seu carrinho está vazio.'),h('p',{class:'note'},'Adicione aparelhos e envie a lista pelo WhatsApp.'))));
+    return;
+  }
+  const rows=cart.map(it=>{
+    const dec=h('button',{class:'q',type:'button','aria-label':'Diminuir quantidade'},'−'),inc=h('button',{class:'q',type:'button','aria-label':'Aumentar quantidade'},'+'),rm=h('button',{class:'rm',type:'button'},'Remover');
+    dec.onclick=()=>setQty(it.id,-1);inc.onclick=()=>setQty(it.id,1);rm.onclick=()=>rmItem(it.id);
+    return h('div',{class:'crow'},
+      it.img?h('img',{src:it.img,alt:''}):h('span',{class:'ph0'},'📱'),
+      h('div',{class:'cinfo'},h('b',{},it.name),it.price?h('span',{class:'note'},it.price):null,h('div',{class:'step'},dec,h('span',{},it.qty),inc)),
+      rm);
+  });
+  const t=total();
+  const nm=h('input',{placeholder:'Seu nome (opcional)',autocomplete:'name',value:store.get('cart:name')||''});
+  let send;
+  if(PHONE){send=h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:waLink(nm.value)},'Enviar interesse pelo WhatsApp');send.insertAdjacentHTML('afterbegin',WA)}
+  else send=h('p',{class:'note'},'O WhatsApp da loja ainda não foi configurado.');
+  nm.oninput=()=>{store.set('cart:name',nm.value);if(PHONE)send.href=waLink(nm.value)};
+  const clr=h('button',{class:'rm',type:'button'},'Esvaziar carrinho');
+  clr.onclick=()=>{cart=[];saveCart();refresh()};
+  cartEl.replaceChildren(h('div',{class:'csheet'},x,head,h('div',{class:'clist'},rows),
+    h('div',{class:'cfoot'},t!=null?h('div',{class:'tot'},h('span',{},'Total'),h('b',{},brl(t))):null,nm,send,clr)));
+}
+function mkFab(){
+  fab=h('button',{class:'fab',type:'button','aria-label':'Abrir carrinho'});
+  fab.innerHTML=CART_SVG+'<span class="bdg" hidden>0</span>';
+  fab.onclick=openCart;document.body.append(fab);
+}
+
+/* ---------- Vitrine ---------- */
+function waBtn(p,phone,mini){
   if(!phone)return null;
   const msg=`Olá! Tenho interesse no ${p.name}${p.price?` (${p.price})`:''}. Poderia me passar mais informações?`;
-  const a=h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},'Tenho interesse');
+  const a=h('a',{class:'btn wa'+(mini?' mini':''),'aria-label':'Tenho interesse neste aparelho',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},mini?null:'Tenho interesse');
   a.insertAdjacentHTML('afterbegin',WA);return a;
 }
 function openM(p,phone){
@@ -38,27 +126,36 @@ function openM(p,phone){
   const info=h('div',{class:'info'},h('h2',{},p.name),p.price?h('div',{class:'big'},p.price):null,
     p.description?h('p',{class:'desc full'},p.description):null,
     pay.length?h('div',{},h('h4',{},'💳 Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
-    waBtn(p,phone));
+    addBtn(p),waBtn(p,phone));
   modal.replaceChildren(h('div',{class:'sheet'},x,left,info));
-  modal.hidden=false;document.body.style.overflow='hidden';
+  modal.hidden=false;document.body.style.overflow='hidden';refresh();
 }
 function card(p,phone){
   const gal=h('div',{class:'gal'},p.images[0]?ph(p.images[0],p.name):h('div',{class:'noimg'},'📱'));
   if(p.images.length>1)gal.append(h('span',{class:'more'},'📷 '+p.images.length));
   if(p.price)gal.append(h('span',{class:'price'},p.price));
-  const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver fotos e parcelamento ›'),waBtn(p,phone)));
-  c.onclick=e=>{if(!e.target.closest('a'))openM(p,phone)};
+  const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver fotos e parcelamento ›'),
+    h('div',{class:'acts'},addBtn(p),waBtn(p,phone,true))));
+  c.onclick=e=>{if(!e.target.closest('a,button'))openM(p,phone)};
   return c;
 }
 (async()=>{
-  const slug=location.pathname.startsWith('/v/')?location.pathname.slice(3):'';
   const r=await fetch('/api/view'+(slug?'/'+slug:''));
   const g=document.getElementById('grid');
   if(!r.ok){g.replaceWith(h('p',{class:'empty'},'Link inválido ou removido.'));return}
   const v=await r.json();
+  PHONE=v.whatsapp||'';CATALOG=v.products;
+  try{cart=JSON.parse(store.get(KEY)||'[]')}catch{cart=[]}
+  // mantém só itens que ainda existem e atualiza nome/preço/foto
+  cart=cart.map(it=>{const p=CATALOG.find(x=>x.id===it.id);
+    return p?{id:p.id,name:p.name,price:p.price||'',img:p.images[0]?.url||'',qty:Math.max(1,Math.min(99,+it.qty||1))}:null}).filter(Boolean);
+  saveCart();
   document.getElementById('title').textContent=document.title=v.title||'NCR iPhone';
   if(v.greeting)document.getElementById('sub').textContent=v.greeting;
   if(!v.products.length)g.replaceWith(h('p',{class:'empty'},'Nenhum produto disponível no momento.'));
-  else v.products.forEach((p,i)=>{const c=card(p,v.whatsapp);c.classList.add('reveal');c.style.setProperty('--d',(i%6)*80+'ms');g.append(c);io.observe(c)});
+  else{
+    v.products.forEach((p,i)=>{const c=card(p,v.whatsapp);c.classList.add('reveal');c.style.setProperty('--d',(i%6)*80+'ms');g.append(c);io.observe(c)});
+    mkFab();refresh();
+  }
 })();
 </script></body></html>
