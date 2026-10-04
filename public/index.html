@@ -2,7 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NCR iPhone</title><meta name="theme-color" content="#000000">
-<!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
+<!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css?v=6"></head>
 <body>
 <header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em um aparelho para ver fotos e parcelamento</p></header>
 <div class="bar" id="bar" hidden>
@@ -201,8 +201,9 @@ function card(p,phone){
       gal.append(l,r,cnt);if(dots)gal.append(dots);
     }
   }
-  if(p.price)gal.append(h('span',{class:'price'},p.price));
-  const c=h('article',{class:'card'},gal,h('div',{class:'body'},tagEl(p),h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver detalhes ›'),
+  const pr=h('div',{class:'pr'},p.price?h('span',{class:'price'},p.price):null,CONDS[p.cond]?h('span',{class:'tag '+p.cond},CONDS[p.cond]):null);
+  if(pr.children.length)gal.append(pr);
+  const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver detalhes ›'),
     h('div',{class:'acts'},addBtn(p),waBtn(p,phone,true))));
   c.onclick=e=>{if(!e.target.closest('a,button'))openM(p,phone)};
   return c;

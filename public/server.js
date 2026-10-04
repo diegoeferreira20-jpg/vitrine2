@@ -92,7 +92,7 @@ app.post('/api/products', auth, upload.array('images', 12), (req, res) => {
   if (!name.trim()) { rmUploaded(req.files); return res.status(400).json({ error: 'Informe o nome do produto.' }); }
   const id = db.prepare('INSERT INTO products(name,description,price,installments,cond) VALUES(?,?,?,?,?)').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600), condOf(cond)).lastInsertRowid;
   addImgs(id, req.files);
-  res.json({ id });
+  res.json({ id, cond: condOf(cond) });
 });
 
 app.post('/api/products/import', auth, (req, res) => {
@@ -124,7 +124,7 @@ app.put('/api/products/:id', auth, upload.array('images', 12), (req, res) => {
     if (r) { rmFile(r.filename); db.prepare('DELETE FROM images WHERE id=?').run(+imgId); }
   });
   addImgs(id, req.files);
-  res.json({ ok: true });
+  res.json({ ok: true, cond: condOf(cond) });
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {

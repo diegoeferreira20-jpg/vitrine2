@@ -57,6 +57,7 @@ async function load(){
 }
 function renderList(){
   const l=$('#list');l.innerHTML='';l.append(h('h3',{},`Produtos (${products.length})`));
+  if(products.length&&!('cond' in products[0]))l.append(h('p',{class:'note',style:'color:#ff453a'},'⚠️ O servidor está com a versão antiga e não salva o estado (novo / semi-novo). Troque o server.js e reinicie o servidor.'));
   products.forEach(p=>{
     const e=h('button',{class:'btn ghost sm'},'Editar'),d=h('button',{class:'btn red sm'},'Excluir');
     e.onclick=()=>startEdit(p);
@@ -96,8 +97,9 @@ $('#sf').onsubmit=async e=>{e.preventDefault();
 $('#pf').onsubmit=async e=>{e.preventDefault();
   const fd=new FormData(e.target);fd.delete('images');for(const o of pending)fd.append('images',await resize(o.f));if(editing)fd.append('remove',JSON.stringify(removed));
   $('#pn').textContent='Salvando...';
-  try{await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
-    resetForm();$('#pn').textContent='Produto salvo! Já está na vitrine.';load()}
+  const want=fd.get('cond')||'';
+  try{const r=await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
+    resetForm();$('#pn').textContent=(r.cond||'')===want?'Produto salvo! Já está na vitrine.':'⚠️ Produto salvo, mas o servidor NÃO gravou o estado (novo / semi-novo). Troque o server.js na raiz do projeto e reinicie o servidor.';load()}
   catch(x){$('#pn').textContent=x.message;if(x.status===401)boot()}};
 const ST={pending:'Aguardando pagamento',paid:'Pago ✓',failed:'Não concluído',refunded:'Estornado',check:'Conferir valor no Mercado Pago'};
 const MT={pix:'Pix',bank_transfer:'Pix',credit_card:'Cartão de crédito',debit_card:'Cartão de débito',ticket:'Boleto',account_money:'Saldo Mercado Pago'};
