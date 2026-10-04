@@ -8,15 +8,17 @@
   <form class="box" id="lf"><h3>Entrar</h3><input type="password" id="pw" placeholder="Senha" autocomplete="current-password" required><button class="btn">Entrar</button><p class="note" id="ln"></p></form>
 </main>
 <main class="adm" id="panel" hidden>
+  <div class="box" id="ord"></div>
   <form class="box" id="sf"><h3>Configurações</h3>
     <input id="st" placeholder="Título da vitrine"><input id="sw" inputmode="numeric" placeholder="WhatsApp com DDI+DDD, ex: 5511999999999">
     <button class="btn">Salvar configurações</button></form>
   <form class="box" id="imf"><h3>📋 Importar lista de produtos</h3>
-    <p class="note">Cole sua lista, separando cada aparelho com uma linha em branco: 1ª linha = nome, linha com "R$" = preço, linhas começando com "12x" ou "Parcelamento" = parcelamento, o resto = descrição. Depois toque em "Editar" em cada um para anexar as fotos.</p>
+    <p class="note">Cole sua lista, separando cada aparelho com uma linha em branco: 1ª linha = nome, linha com "R$" = preço, linhas começando com "12x" ou "Parcelamento" = parcelamento, uma linha só com "Novo" ou "Semi-novo" = estado do aparelho, o resto = descrição. Depois toque em "Editar" em cada um para anexar as fotos.</p>
     <textarea id="imt" rows="8" placeholder="iPhone 15 Pro 256GB&#10;R$ 5.999&#10;Titânio natural, bateria 100%, com caixa&#10;&#10;iPhone 13 128GB&#10;R$ 3.299&#10;Azul, bateria 89%"></textarea>
     <button class="btn">Importar lista</button><p class="note" id="imn"></p></form>
   <form class="box" id="pf"><h3 id="ft">Novo produto</h3>
     <input name="name" placeholder="Nome (ex: iPhone 15 Pro 256GB)" required><input name="price" placeholder="Preço (opcional, ex: R$ 5.999)">
+    <select name="cond" required><option value="" disabled selected>Estado do aparelho</option><option value="novo">Novo</option><option value="semi">Semi-novo</option></select>
     <textarea name="description" rows="4" placeholder="Descrição (cor, memória, bateria, estado...)"></textarea>
     <textarea name="installments" rows="3" placeholder="Parcelamento (uma opção por linha)&#10;10x de R$ 650 sem juros&#10;12x de R$ 560 com juros"></textarea>
     <div class="thumbs" id="old"></div>
@@ -51,7 +53,7 @@ async function boot(){
 }
 async function load(){
   const [s,p]=await Promise.all([api('/api/settings'),api('/api/products')]);
-  $('#st').value=s.title;$('#sw').value=s.whatsapp;products=p;renderList();renderLp();await loadLinks();
+  $('#st').value=s.title;$('#sw').value=s.whatsapp;products=p;renderList();renderLp();await loadLinks();await loadOrders();
 }
 function renderList(){
   const l=$('#list');l.innerHTML='';l.append(h('h3',{},`Produtos (${products.length})`));
@@ -59,7 +61,7 @@ function renderList(){
     const e=h('button',{class:'btn ghost sm'},'Editar'),d=h('button',{class:'btn red sm'},'Excluir');
     e.onclick=()=>startEdit(p);
     d.onclick=async()=>{if(!confirm(`Excluir "${p.name}"?`))return;await api('/api/products/'+p.id,{method:'DELETE'});load()};
-    l.append(h('div',{class:'row'},p.images[0]?h('img',{src:p.images[0].url,alt:''}):h('span',{},'📱'),h('b',{},p.name,p.images.length?null:h('span',{class:'note'},' · sem foto')),e,d));
+    l.append(h('div',{class:'row'},p.images[0]?h('img',{src:p.images[0].url,alt:''}):h('span',{},'📱'),h('b',{},p.name,h('span',{class:'note'},' · '+(p.cond==='novo'?'Novo':p.cond==='semi'?'Semi-novo':'sem estado')),p.images.length?null:h('span',{class:'note'},' · sem foto')),e,d));
   });
 }
 function renderOld(p){
@@ -72,7 +74,7 @@ function renderOld(p){
 }
 function startEdit(p){
   editing=p;removed=[];pending=[];renderNew();const f=$('#pf');
-  f.name.value=p.name;f.price.value=p.price;f.description.value=p.description;f.installments.value=p.installments||'';
+  f.name.value=p.name;f.price.value=p.price;f.cond.value=p.cond||'';f.description.value=p.description;f.installments.value=p.installments||'';
   $('#ft').textContent='Editar produto';$('#sb').textContent='Salvar produto';$('#cancel').hidden=false;
   renderOld(p);f.scrollIntoView({behavior:'smooth'});
 }
@@ -97,6 +99,21 @@ $('#pf').onsubmit=async e=>{e.preventDefault();
   try{await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
     resetForm();$('#pn').textContent='Produto salvo! Já está na vitrine.';load()}
   catch(x){$('#pn').textContent=x.message;if(x.status===401)boot()}};
+const ST={pending:'Aguardando pagamento',paid:'Pago ✓',failed:'Não concluído',refunded:'Estornado',check:'Conferir valor no Mercado Pago'};
+const MT={pix:'Pix',bank_transfer:'Pix',credit_card:'Cartão de crédito',debit_card:'Cartão de débito',ticket:'Boleto',account_money:'Saldo Mercado Pago'};
+async function loadOrders(){
+  const o=await api('/api/orders'),b=$('#ord');b.innerHTML='';
+  b.append(h('h3',{},`Pedidos online (${o.length})`));
+  if(!o.length){b.append(h('p',{class:'note'},'Nenhum pedido ainda. Os pagamentos feitos pela vitrine aparecem aqui.'));return}
+  o.forEach(x=>{
+    const d=new Date(x.created_at.replace(' ','T')+'Z').toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const wa=x.phone?h('a',{class:'btn ghost sm',target:'_blank',rel:'noopener',href:'https://wa.me/'+x.phone},'WhatsApp do cliente'):null;
+    const tot=x.total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    b.append(h('div',{class:'row'},h('b',{},`#${x.ref.slice(0,6).toUpperCase()} · ${x.customer||'Sem nome'}`),
+      h('span',{class:'note'},`${ST[x.status]||x.status}${x.mp_method?' · '+(MT[x.mp_method]||x.mp_method):''} · ${d}`),wa,
+      h('span',{class:'note',style:'flex-basis:100%;white-space:pre-line'},x.items.map(i=>`${i.qty}x ${i.name}`).join('\n')+`\nTotal: ${tot}`)));
+  });
+}
 let links=[];
 const origin=location.origin;
 function renderLp(sel=[]){

@@ -4,7 +4,13 @@
 <title>NCR iPhone</title><meta name="theme-color" content="#000000">
 <!--OG--><link rel="icon" href="/icon-192.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Explore nosso catálogo e encontre o celular que mais combina com você</p></header>
+<header><img class="logo" src="/logo.png" alt="NCR iPhone"><h1 id="title">NCR iPhone</h1><p class="sub" id="sub">Toque em um aparelho para ver fotos e parcelamento</p></header>
+<div class="bar" id="bar" hidden>
+  <div class="sbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Buscar aparelho..." autocomplete="off" enterkeyhint="search" aria-label="Buscar aparelho"><button id="qc" type="button" aria-label="Limpar busca" hidden>×</button></div>
+  <div class="seg" id="seg" role="group" aria-label="Estado do aparelho"><button type="button" data-c="" class="on">Todos</button><button type="button" data-c="novo">Novos</button><button type="button" data-c="semi">Semi-novos</button></div>
+</div>
+<p class="resn" id="resn"></p>
 <main id="grid" class="grid"></main>
 <footer>NCR iPhone</footer>
 <div id="modal" class="modal" hidden></div>
@@ -25,7 +31,7 @@ const CART_SVG='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 /* ---------- Carrinho ---------- */
 const slug=location.pathname.startsWith('/v/')?location.pathname.slice(3):'';
 const KEY='cart:'+slug;
-let PHONE='',CATALOG=[],cart=[],fab=null;
+let PHONE='',PAY=false,CATALOG=[],cart=[],fab=null;
 const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}}};
 const saveCart=()=>store.set(KEY,JSON.stringify(cart));
 const num=s=>{const m=String(s||'').match(/\d[\d.]*(?:,\d{1,2})?/);if(!m)return null;const t=m[0];
@@ -53,7 +59,8 @@ function refresh(){
   if(fab){const b=fab.querySelector('.bdg'),n=count();b.textContent=n;b.hidden=!n}
   document.querySelectorAll('.add').forEach(b=>{
     const it=cart.find(c=>c.id==b.dataset.pid);
-    b.textContent=it?`✓ No carrinho (${it.qty})`:'Adicionar ao carrinho';b.classList.toggle('in',!!it)});
+    const sh=!!b.dataset.short;
+    b.textContent=it?(sh?'✓ No carrinho':`✓ No carrinho (${it.qty})`):(sh?'Adicionar':'Adicionar ao carrinho');b.classList.toggle('in',!!it)});
   if(!cartEl.hidden)renderCart();
 }
 function addToCart(p){
@@ -62,8 +69,8 @@ function addToCart(p){
   else cart.push({id:p.id,name:p.name,price:p.price||'',img:p.images[0]?.url||'',qty:1});
   saveCart();refresh();toast('Adicionado ao carrinho');
 }
-function addBtn(p){
-  const b=h('button',{class:'btn add',type:'button','data-pid':p.id},'Adicionar ao carrinho');
+function addBtn(p,short){
+  const b=h('button',{class:'btn add',type:'button','data-pid':p.id,'data-short':short?'1':''},short?'Adicionar':'Adicionar ao carrinho');
   b.onclick=e=>{e.stopPropagation();addToCart(p)};
   return b;
 }
@@ -89,19 +96,64 @@ function renderCart(){
   });
   const t=total();
   const nm=h('input',{placeholder:'Seu nome (opcional)',autocomplete:'name',value:store.get('cart:name')||''});
+  const tel=h('input',{type:'tel',inputmode:'tel',placeholder:'Seu WhatsApp para contato (opcional)',autocomplete:'tel',value:store.get('cart:phone')||''});
   let send;
   if(PHONE){send=h('a',{class:'btn wa',target:'_blank',rel:'noopener',href:waLink(nm.value)},'Enviar interesse pelo WhatsApp');send.insertAdjacentHTML('afterbegin',WA)}
   else send=h('p',{class:'note'},'O WhatsApp da loja ainda não foi configurado.');
   nm.oninput=()=>{store.set('cart:name',nm.value);if(PHONE)send.href=waLink(nm.value)};
+  tel.oninput=()=>store.set('cart:phone',tel.value);
+  const msg=h('p',{class:'note'});let pay=null;
+  if(PAY){
+    if(t!=null){pay=h('button',{class:'btn',type:'button'},PAYTXT);pay.onclick=()=>checkout(pay,msg,nm.value,tel.value)}
+    else msg.textContent='Pagamento online indisponível: algum item está sem preço. Envie o interesse pelo WhatsApp.';
+  }
   const clr=h('button',{class:'rm',type:'button'},'Esvaziar carrinho');
   clr.onclick=()=>{cart=[];saveCart();refresh()};
   cartEl.replaceChildren(h('div',{class:'csheet'},x,head,h('div',{class:'clist'},rows),
-    h('div',{class:'cfoot'},t!=null?h('div',{class:'tot'},h('span',{},'Total'),h('b',{},brl(t))):null,nm,send,clr)));
+    h('div',{class:'cfoot'},t!=null?h('div',{class:'tot'},h('span',{},'Total'),h('b',{},brl(t))):null,nm,tel,pay,send,msg,clr)));
+}
+const PAYTXT='Pagar online (Pix ou cartão)';
+async function checkout(btn,msg,name,phone){
+  btn.disabled=true;btn.textContent='Gerando pagamento...';msg.textContent='';
+  try{
+    const r=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({slug,name,phone,items:cart.map(i=>({id:i.id,qty:i.qty}))})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.url)throw new Error(j.error||'Não foi possível iniciar o pagamento.');
+    location.href=j.url;
+  }catch(e){msg.textContent=e.message;btn.disabled=false;btn.textContent=PAYTXT}
 }
 function mkFab(){
   fab=h('button',{class:'fab',type:'button','aria-label':'Abrir carrinho'});
   fab.innerHTML=CART_SVG+'<span class="bdg" hidden>0</span>';
   fab.onclick=openCart;document.body.append(fab);
+}
+
+/* ---------- Busca e filtro ---------- */
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const CONDS={novo:'Novo',semi:'Semi-novo'};
+const tagEl=p=>CONDS[p.cond]?h('span',{class:'tag '+p.cond},CONDS[p.cond]):null;
+const $id=id=>document.getElementById(id);
+let FQ='',FC='';const cards=[];
+function clearFilters(){FQ='';FC='';$id('q').value='';document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',!b.dataset.c));applyFilter()}
+function applyFilter(){
+  const terms=norm(FQ).split(/\s+/).filter(Boolean);let n=0;
+  cards.forEach(c=>{const ok=(!FC||c.p.cond===FC)&&terms.every(t=>c.text.includes(t));c.el.hidden=!ok;if(ok)n++});
+  let em=$id('nores');
+  if(!n){
+    if(!em){const b=h('button',{class:'btn ghost',type:'button'},'Limpar filtros');b.onclick=clearFilters;
+      em=h('div',{id:'nores',class:'empty'},h('p',{},'Nenhum aparelho encontrado.'),b);$id('grid').after(em)}
+  }else if(em)em.remove();
+  $id('resn').textContent=(FQ.trim()||FC)?`${n} aparelho${n===1?'':'s'} encontrado${n===1?'':'s'}`:'';
+  $id('qc').hidden=!FQ;
+}
+function initFilter(){
+  $id('bar').hidden=false;
+  $id('q').oninput=e=>{FQ=e.target.value;applyFilter()};
+  $id('q').onkeydown=e=>{if(e.key==='Enter')e.target.blur()};
+  $id('qc').onclick=()=>{FQ='';$id('q').value='';applyFilter();$id('q').focus()};
+  document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{FC=b.dataset.c;
+    document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));applyFilter()});
 }
 
 /* ---------- Vitrine ---------- */
@@ -123,19 +175,35 @@ function openM(p,phone){
   }else left=h('div',{class:'noimg'},'📱');
   const pay=(p.installments||'').split('\n').map(s=>s.trim()).filter(Boolean);
   const x=h('button',{class:'x','aria-label':'Fechar'},'×');x.onclick=closeM;
-  const info=h('div',{class:'info'},h('h2',{},p.name),p.price?h('div',{class:'big'},p.price):null,
+  const info=h('div',{class:'info'},tagEl(p),h('h2',{},p.name),p.price?h('div',{class:'big'},p.price):null,
     p.description?h('p',{class:'desc full'},p.description):null,
-    pay.length?h('div',{},h('h4',{},'💳 Formas de Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
+    pay.length?h('div',{},h('h4',{},'💳 Parcelamento'),h('ul',{class:'pay'},pay.map(t=>h('li',{},t)))):null,
     addBtn(p),waBtn(p,phone));
   modal.replaceChildren(h('div',{class:'sheet'},x,left,info));
   modal.hidden=false;document.body.style.overflow='hidden';refresh();
 }
 function card(p,phone){
-  const gal=h('div',{class:'gal'},p.images[0]?ph(p.images[0],p.name):h('div',{class:'noimg'},'📱'));
-  if(p.images.length>1)gal.append(h('span',{class:'more'},p.images.length));
+  const imgs=p.images;let gal;
+  if(!imgs.length)gal=h('div',{class:'gal'},h('div',{class:'noimg'},'📱'));
+  else{
+    const sl=h('div',{class:'slides'},imgs.map(i=>ph(i,p.name)));
+    gal=h('div',{class:'gal'},sl);
+    if(imgs.length>1){
+      const cnt=h('span',{class:'more'},'📷 1/'+imgs.length);
+      const dots=imgs.length<=6?h('div',{class:'dots'},imgs.map((_,k)=>h('i',{class:k?'':'on'}))):null;
+      const go=d=>sl.scrollBy({left:d*sl.clientWidth,behavior:'smooth'});
+      const l=h('button',{class:'nav l',type:'button','aria-label':'Foto anterior'},'‹'),r=h('button',{class:'nav r',type:'button','aria-label':'Próxima foto'},'›');
+      l.onclick=e=>{e.stopPropagation();go(-1)};r.onclick=e=>{e.stopPropagation();go(1)};
+      let raf;
+      sl.addEventListener('scroll',()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{
+        const k=Math.min(imgs.length-1,Math.max(0,Math.round(sl.scrollLeft/sl.clientWidth)));
+        cnt.textContent=`📷 ${k+1}/${imgs.length}`;if(dots)[...dots.children].forEach((d,j)=>d.className=j===k?'on':'')})},{passive:true});
+      gal.append(l,r,cnt);if(dots)gal.append(dots);
+    }
+  }
   if(p.price)gal.append(h('span',{class:'price'},p.price));
-  const c=h('article',{class:'card'},gal,h('div',{class:'body'},h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver fotos e parcelamento ›'),
-    h('div',{class:'acts'},addBtn(p),waBtn(p,phone,true))));
+  const c=h('article',{class:'card'},gal,h('div',{class:'body'},tagEl(p),h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver detalhes ›'),
+    h('div',{class:'acts'},addBtn(p,true),waBtn(p,phone,true))));
   c.onclick=e=>{if(!e.target.closest('a,button'))openM(p,phone)};
   return c;
 }
@@ -144,7 +212,7 @@ function card(p,phone){
   const g=document.getElementById('grid');
   if(!r.ok){g.replaceWith(h('p',{class:'empty'},'Link inválido ou removido.'));return}
   const v=await r.json();
-  PHONE=v.whatsapp||'';CATALOG=v.products;
+  PHONE=v.whatsapp||'';PAY=!!v.pay;CATALOG=v.products;
   try{cart=JSON.parse(store.get(KEY)||'[]')}catch{cart=[]}
   // mantém só itens que ainda existem e atualiza nome/preço/foto
   cart=cart.map(it=>{const p=CATALOG.find(x=>x.id===it.id);
@@ -154,8 +222,9 @@ function card(p,phone){
   if(v.greeting)document.getElementById('sub').textContent=v.greeting;
   if(!v.products.length)g.replaceWith(h('p',{class:'empty'},'Nenhum produto disponível no momento.'));
   else{
-    v.products.forEach((p,i)=>{const c=card(p,v.whatsapp);c.classList.add('reveal');c.style.setProperty('--d',(i%6)*80+'ms');g.append(c);io.observe(c)});
-    mkFab();refresh();
+    v.products.forEach((p,i)=>{const c=card(p,v.whatsapp);c.classList.add('reveal');c.style.setProperty('--d',(i%6)*80+'ms');g.append(c);io.observe(c);
+      cards.push({p,el:c,text:norm([p.name,p.description,p.price,CONDS[p.cond]].join(' '))})});
+    initFilter();mkFab();refresh();
   }
 })();
 </script></body></html>

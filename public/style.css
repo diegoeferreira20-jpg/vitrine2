@@ -123,3 +123,63 @@ input::placeholder,textarea::placeholder{color:#58585d}
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);z-index:70;background:rgba(28,28,30,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--ln);color:#fff;padding:10px 18px;border-radius:980px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s,transform .4s var(--ease);white-space:nowrap}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .btn:focus-visible,.q:focus-visible,.fab:focus-visible,.rm:focus-visible{outline:2px solid var(--y);outline-offset:3px}
+
+/* ===== Pagamento online ===== */
+.btn:disabled{opacity:.6;cursor:wait;pointer-events:none}
+.cfoot input{font-size:16px}
+.okmark{font-size:46px;text-align:center;line-height:1}
+.ordl{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.ordl li{background:#151517;border:1px solid var(--ln);border-radius:14px;padding:11px 14px;font-size:15px}
+.ordt{display:flex;justify-content:space-between;align-items:baseline}
+.ordt b{font-size:24px;color:var(--y);letter-spacing:-.02em}
+.box .btn{text-align:center}
+
+/* ===== Pesquisa, filtro e galeria no card ===== */
+select{width:100%;padding:12px 14px;border:1px solid var(--ln);border-radius:14px;background:#000;color:var(--tx);font:inherit;font-size:16px}
+select:focus{outline:0;border-color:var(--y);box-shadow:0 0 0 4px rgba(255,214,10,.15)}
+.bar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1160px;margin:0 auto;padding:10px 20px;background:rgba(0,0,0,.78);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.bar[hidden]{display:none}
+.sbox{position:relative;flex:1 1 240px}
+.sbox>svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--mut);pointer-events:none}
+.sbox input{padding-left:42px;padding-right:44px;border-radius:980px;background:#0d0d0f}
+.sbox input::-webkit-search-cancel-button{display:none}
+.sbox button{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;border:0;background:#2a2a2d;color:#fff;font-size:16px;line-height:1;cursor:pointer}
+.sbox button[hidden]{display:none}
+.seg{display:flex;background:#0d0d0f;border:1px solid var(--ln);border-radius:980px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--mut);font:inherit;font-size:14px;font-weight:600;padding:8px 14px;border-radius:980px;cursor:pointer;white-space:nowrap;transition:background .3s var(--ease),color .3s}
+.seg button.on{background:var(--yg);color:#000}
+.resn{max-width:1160px;margin:6px auto 0;padding:0 20px;color:var(--mut);font-size:14px;min-height:20px}
+.card[hidden]{display:none}
+.tag{align-self:flex-start;font-size:12px;font-weight:600;letter-spacing:.01em;padding:3px 10px;border-radius:980px;border:1px solid var(--ln);color:var(--mut)}
+.tag.novo{color:#30d158;border-color:rgba(48,209,88,.45)}
+.tag.semi{color:var(--y);border-color:rgba(255,214,10,.45)}
+.info .tag{margin-bottom:-4px}
+.gal .slides{overscroll-behavior-x:contain}
+.dots{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:5px;pointer-events:none}
+.dots i{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.4);transition:width .3s var(--ease),background .3s}
+.dots i.on{width:16px;background:var(--y)}
+.nav{display:none;position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:34px;height:34px;border-radius:50%;border:1px solid var(--ln);background:rgba(20,20,22,.65);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;font-size:20px;line-height:1;cursor:pointer;opacity:0;transition:opacity .3s}
+.nav.l{left:8px}.nav.r{right:8px}
+@media(hover:hover){.nav{display:grid;place-items:center}.card:hover .nav{opacity:1}}
+@media(max-width:600px){
+  header{padding:30px 16px 8px}
+  .logo{width:84px;height:84px;margin-bottom:12px}
+  .sub{margin:8px auto 10px}
+  .bar{padding:8px 12px;gap:8px}
+  .seg{width:100%}.seg button{flex:1;padding:8px 6px}
+  .resn{padding:0 14px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px auto;padding:0 12px 100px}
+  .card{border-radius:20px}
+  .body{padding:12px 12px 14px;gap:6px}
+  .card h2{font-size:15px;line-height:1.25;letter-spacing:-.01em}
+  .card .desc{font-size:13px;-webkit-line-clamp:2}
+  .det{font-size:13px}
+  .price{top:8px;left:8px;font-size:12px;padding:4px 10px}
+  .more{top:8px;right:8px;font-size:11px;padding:3px 8px}
+  .dots{bottom:8px}
+  .acts{gap:6px}
+  .acts .add{padding:10px 4px;font-size:13px}
+  .btn.wa.mini{width:42px}
+  .tag{font-size:11px;padding:2px 8px}
+}
+.sbox input{-webkit-appearance:none;appearance:none}
