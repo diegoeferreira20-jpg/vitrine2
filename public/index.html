@@ -47,7 +47,7 @@ let tt;
 function toast(m){let t=document.querySelector('.toast');if(!t){t=h('div',{class:'toast',role:'status'});document.body.append(t)}
   t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),1600)}
 function waLink(name){
-  const lines=cart.map(i=>`• ${i.qty}x ${i.name}${i.price?` - ${i.price}`:''}`);
+  const lines=cart.map(i=>`• ${i.qty}x ${i.name}${CONDS[i.cond]?` (${CONDS[i.cond]})`:''}${i.price?` - ${i.price}`:''}`);
   const t=total();
   let msg=`Olá! Tenho interesse nos seguintes aparelhos:\n\n${lines.join('\n')}`;
   if(t!=null)msg+=`\n\nTotal: ${brl(t)}`;
@@ -66,7 +66,7 @@ function refresh(){
 function addToCart(p){
   const it=cart.find(c=>c.id===p.id);
   if(it)it.qty=Math.min(99,it.qty+1);
-  else cart.push({id:p.id,name:p.name,price:p.price||'',img:p.images[0]?.url||'',qty:1});
+  else cart.push({id:p.id,name:p.name,price:p.price||'',cond:p.cond||'',img:p.images[0]?.url||'',qty:1});
   saveCart();refresh();toast('Adicionado ao carrinho');
 }
 function addBtn(p,short){
@@ -91,7 +91,7 @@ function renderCart(){
     dec.onclick=()=>setQty(it.id,-1);inc.onclick=()=>setQty(it.id,1);rm.onclick=()=>rmItem(it.id);
     return h('div',{class:'crow'},
       it.img?h('img',{src:it.img,alt:''}):h('span',{class:'ph0'},'📱'),
-      h('div',{class:'cinfo'},h('b',{},it.name),it.price?h('span',{class:'note'},it.price):null,h('div',{class:'step'},dec,h('span',{},it.qty),inc)),
+      h('div',{class:'cinfo'},h('b',{},it.name),(CONDS[it.cond]||it.price)?h('span',{class:'note'},[CONDS[it.cond],it.price].filter(Boolean).join(' · ')):null,h('div',{class:'step'},dec,h('span',{},it.qty),inc)),
       rm);
   });
   const t=total();
@@ -159,7 +159,8 @@ function initFilter(){
 /* ---------- Vitrine ---------- */
 function waBtn(p,phone,mini){
   if(!phone)return null;
-  const msg=`Olá! Tenho interesse no ${p.name}${p.price?` (${p.price})`:''}. Poderia me passar mais informações?`;
+  const det=[CONDS[p.cond],p.price].filter(Boolean).join(', ');
+  const msg=`Olá! Tenho interesse no ${p.name}${det?` (${det})`:''}. Poderia me passar mais informações?`;
   const a=h('a',{class:'btn wa'+(mini?' mini':''),'aria-label':'Tenho interesse neste aparelho',target:'_blank',rel:'noopener',href:`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`},mini?null:'Tenho interesse');
   a.insertAdjacentHTML('afterbegin',WA);return a;
 }
@@ -217,7 +218,7 @@ function card(p,phone){
   try{cart=JSON.parse(store.get(KEY)||'[]')}catch{cart=[]}
   // mantém só itens que ainda existem e atualiza nome/preço/foto
   cart=cart.map(it=>{const p=CATALOG.find(x=>x.id===it.id);
-    return p?{id:p.id,name:p.name,price:p.price||'',img:p.images[0]?.url||'',qty:Math.max(1,Math.min(99,+it.qty||1))}:null}).filter(Boolean);
+    return p?{id:p.id,name:p.name,price:p.price||'',cond:p.cond||'',img:p.images[0]?.url||'',qty:Math.max(1,Math.min(99,+it.qty||1))}:null}).filter(Boolean);
   saveCart();
   document.getElementById('title').textContent=document.title=v.title||'NCR iPhone';
   if(v.greeting)document.getElementById('sub').textContent=v.greeting;
