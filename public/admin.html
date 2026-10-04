@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
 <title>Admin · NCR iPhone</title><link rel="stylesheet" href="/style.css"><link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#000000"><link rel="apple-touch-icon" href="/icon-192.png"></head>
 <body>
 <header><img class="logo" src="/logo.png" alt="" style="width:76px;height:76px"><h1>Painel do administrador</h1><p class="sub"><a href="/" target="_blank">Ver vitrine</a></p></header>
@@ -8,7 +8,6 @@
   <form class="box" id="lf"><h3>Entrar</h3><input type="password" id="pw" placeholder="Senha" autocomplete="current-password" required><button class="btn">Entrar</button><p class="note" id="ln"></p></form>
 </main>
 <main class="adm" id="panel" hidden>
-  <div class="box" id="ord"></div>
   <form class="box" id="sf"><h3>Configurações</h3>
     <input id="st" placeholder="Título da vitrine"><input id="sw" inputmode="numeric" placeholder="WhatsApp com DDI+DDD, ex: 5511999999999">
     <button class="btn">Salvar configurações</button></form>
@@ -53,7 +52,7 @@ async function boot(){
 }
 async function load(){
   const [s,p]=await Promise.all([api('/api/settings'),api('/api/products')]);
-  $('#st').value=s.title;$('#sw').value=s.whatsapp;products=p;renderList();renderLp();await loadLinks();await loadOrders();
+  $('#st').value=s.title;$('#sw').value=s.whatsapp;products=p;renderList();renderLp();await loadLinks();
 }
 function renderList(){
   const l=$('#list');l.innerHTML='';l.append(h('h3',{},`Produtos (${products.length})`));
@@ -101,21 +100,6 @@ $('#pf').onsubmit=async e=>{e.preventDefault();
   try{const r=await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',body:fd});
     resetForm();$('#pn').textContent=(r.cond||'')===want?'Produto salvo! Já está na vitrine.':'⚠️ Produto salvo, mas o servidor NÃO gravou o estado (novo / semi-novo). Troque o server.js na raiz do projeto e reinicie o servidor.';load()}
   catch(x){$('#pn').textContent=x.message;if(x.status===401)boot()}};
-const ST={pending:'Aguardando pagamento',paid:'Pago ✓',failed:'Não concluído',refunded:'Estornado',check:'Conferir valor no Mercado Pago'};
-const MT={pix:'Pix',bank_transfer:'Pix',credit_card:'Cartão de crédito',debit_card:'Cartão de débito',ticket:'Boleto',account_money:'Saldo Mercado Pago'};
-async function loadOrders(){
-  const o=await api('/api/orders'),b=$('#ord');b.innerHTML='';
-  b.append(h('h3',{},`Pedidos online (${o.length})`));
-  if(!o.length){b.append(h('p',{class:'note'},'Nenhum pedido ainda. Os pagamentos feitos pela vitrine aparecem aqui.'));return}
-  o.forEach(x=>{
-    const d=new Date(x.created_at.replace(' ','T')+'Z').toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-    const wa=x.phone?h('a',{class:'btn ghost sm',target:'_blank',rel:'noopener',href:'https://wa.me/'+x.phone},'WhatsApp do cliente'):null;
-    const tot=x.total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-    b.append(h('div',{class:'row'},h('b',{},`#${x.ref.slice(0,6).toUpperCase()} · ${x.customer||'Sem nome'}`),
-      h('span',{class:'note'},`${ST[x.status]||x.status}${x.mp_method?' · '+(MT[x.mp_method]||x.mp_method):''} · ${d}`),wa,
-      h('span',{class:'note',style:'flex-basis:100%;white-space:pre-line'},x.items.map(i=>`${i.qty}x ${i.name}`).join('\n')+`\nTotal: ${tot}`)));
-  });
-}
 let links=[];
 const origin=location.origin;
 function renderLp(sel=[]){
