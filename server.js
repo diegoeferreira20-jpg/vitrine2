@@ -6,6 +6,11 @@ const PASS = process.env.ADMIN_PASSWORD || 'admin123';
 const SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const DATA = process.env.DATA_DIR || path.join(__dirname, 'data');
 const UP = path.join(DATA, 'uploads');
+// Pagamento online (Mercado Pago). Sem MP_ACCESS_TOKEN o botão "Pagar online" não aparece.
+const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+const MP_INSTALLMENTS = Math.min(12, Math.max(1, parseInt(process.env.MP_MAX_INSTALLMENTS, 10) || 12));
+const MP_BOLETO = process.env.MP_ALLOW_BOLETO === '1';
 fs.mkdirSync(UP, { recursive: true });
 if (!process.env.ADMIN_PASSWORD) console.warn('⚠️  Defina ADMIN_PASSWORD! Usando a senha padrão "admin123".');
 
@@ -21,6 +26,8 @@ INSERT OR IGNORE INTO settings VALUES('title','NCR iPhone'),('whatsapp','');
 
 db.prepare("UPDATE settings SET value='NCR iPhone' WHERE key='title' AND value='Vitrine de iPhones'").run();
 if (!db.prepare('PRAGMA table_info(products)').all().some(c => c.name === 'installments')) db.exec("ALTER TABLE products ADD COLUMN installments TEXT DEFAULT ''");
+if (!db.prepare('PRAGMA table_info(products)').all().some(c => c.name === 'cond')) db.exec("ALTER TABLE products ADD COLUMN cond TEXT DEFAULT ''");
+const condOf = v => (v === 'novo' || v === 'semi') ? v : '';
 // ---------- Autenticação (cookie assinado) ----------
 const sign = s => crypto.createHmac('sha256', SECRET).update(s).digest('hex');
 const hash = s => crypto.createHash('sha256').update(String(s)).digest();
@@ -81,24 +88,26 @@ app.put('/api/settings', auth, (req, res) => {
 });
 
 app.post('/api/products', auth, upload.array('images', 12), (req, res) => {
-  const { name = '', description = '', price = '', installments = '' } = req.body;
+  const { name = '', description = '', price = '', installments = '', cond = '' } = req.body;
   if (!name.trim()) { rmUploaded(req.files); return res.status(400).json({ error: 'Informe o nome do produto.' }); }
-  const id = db.prepare('INSERT INTO products(name,description,price,installments) VALUES(?,?,?,?)').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600)).lastInsertRowid;
+  const id = db.prepare('INSERT INTO products(name,description,price,installments,cond) VALUES(?,?,?,?,?)').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600), condOf(cond)).lastInsertRowid;
   addImgs(id, req.files);
-  res.json({ id });
+  res.json({ id, cond: condOf(cond) });
 });
 
 app.post('/api/products/import', auth, (req, res) => {
   const blocks = String(req.body.text || '').split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length);
-  const ins = db.prepare('INSERT INTO products(name,description,price,installments) VALUES(?,?,?,?)');
+  const ins = db.prepare('INSERT INTO products(name,description,price,installments,cond) VALUES(?,?,?,?,?)');
   let count = 0;
   db.transaction(() => blocks.slice(0, 200).forEach(lines => {
     const name = lines.shift().replace(/^(?:[-•*#]+|\d+[.)])\s*/, '').slice(0, 120);
     if (!name) return;
     const pi = lines.findIndex(l => /^(r\$|pre[çc]o|valor)/i.test(l));
     const price = pi >= 0 ? lines.splice(pi, 1)[0].replace(/^(pre[çc]o|valor)\s*:?\s*/i, '').slice(0, 40) : '';
+    const ci = lines.findIndex(l => /^(semi[\s-]?novo|novo)s?$/i.test(l));
+    const cond = ci >= 0 ? (/^semi/i.test(lines.splice(ci, 1)[0]) ? 'semi' : 'novo') : '';
     const inst = lines.filter(l => /^(parcel|\d{1,2}\s*x\b)/i.test(l));
-    ins.run(name, lines.filter(l => !inst.includes(l)).join('\n').slice(0, 2000), price, inst.join('\n').slice(0, 600)); count++;
+    ins.run(name, lines.filter(l => !inst.includes(l)).join('\n').slice(0, 2000), price, inst.join('\n').slice(0, 600), cond); count++;
   }))();
   res.json({ count });
 });
@@ -106,16 +115,16 @@ app.post('/api/products/import', auth, (req, res) => {
 app.put('/api/products/:id', auth, upload.array('images', 12), (req, res) => {
   const id = +req.params.id;
   if (!db.prepare('SELECT 1 FROM products WHERE id=?').get(id)) { rmUploaded(req.files); return res.status(404).json({ error: 'Produto não encontrado.' }); }
-  const { name = '', description = '', price = '', installments = '' } = req.body;
+  const { name = '', description = '', price = '', installments = '', cond = '' } = req.body;
   if (!name.trim()) { rmUploaded(req.files); return res.status(400).json({ error: 'Informe o nome do produto.' }); }
-  db.prepare('UPDATE products SET name=?,description=?,price=?,installments=? WHERE id=?').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600), id);
+  db.prepare('UPDATE products SET name=?,description=?,price=?,installments=?,cond=? WHERE id=?').run(name.trim(), description.trim(), price.trim(), installments.trim().slice(0, 600), condOf(cond), id);
   let remove = []; try { remove = JSON.parse(req.body.remove || '[]'); } catch {}
   remove.forEach(imgId => {
     const r = db.prepare('SELECT filename FROM images WHERE id=? AND product_id=?').get(+imgId, id);
     if (r) { rmFile(r.filename); db.prepare('DELETE FROM images WHERE id=?').run(+imgId); }
   });
   addImgs(id, req.files);
-  res.json({ ok: true });
+  res.json({ ok: true, cond: condOf(cond) });
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {
@@ -132,12 +141,12 @@ const esc = s => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 
 function viewOf(slug, count) {
   const s = settings();
-  if (!slug) return { title: s.title, greeting: '', whatsapp: s.whatsapp, products: list() };
+  if (!slug) return { title: s.title, greeting: '', whatsapp: s.whatsapp, pay: !!MP_TOKEN, products: list() };
   const l = db.prepare('SELECT * FROM links WHERE slug=?').get(slug);
   if (!l) return null;
   if (count) db.prepare('UPDATE links SET views=views+1 WHERE slug=?').run(slug);
   const ids = l.product_ids ? l.product_ids.split(',').map(Number) : null;
-  return { title: s.title, greeting: l.greeting, whatsapp: l.whatsapp || s.whatsapp, products: list().filter(p => !ids || ids.includes(p.id)) };
+  return { title: s.title, greeting: l.greeting, whatsapp: l.whatsapp || s.whatsapp, pay: !!MP_TOKEN, products: list().filter(p => !ids || ids.includes(p.id)) };
 }
 app.get('/api/view', (q, r) => r.json(viewOf('', true)));
 app.get('/api/view/:slug', (q, r) => { const v = viewOf(slugify(q.params.slug), true); v ? r.json(v) : r.status(404).json({ error: 'Link inválido ou removido.' }); });
@@ -162,6 +171,100 @@ app.post('/api/links', auth, (q, r) => {
   r.json({ slug });
 });
 app.delete('/api/links/:slug', auth, (q, r) => { db.prepare('DELETE FROM links WHERE slug=?').run(q.params.slug); r.json({ ok: true }); });
+
+// ---------- Pagamento online (Mercado Pago · Checkout Pro) ----------
+db.exec(`CREATE TABLE IF NOT EXISTS orders(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT UNIQUE NOT NULL, slug TEXT DEFAULT '', customer TEXT DEFAULT '', phone TEXT DEFAULT '',
+  items TEXT NOT NULL, total REAL NOT NULL, status TEXT DEFAULT 'pending', mp_payment_id TEXT DEFAULT '', mp_method TEXT DEFAULT '',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP, paid_at TEXT DEFAULT '')`);
+
+// "R$ 5.999" -> 5999 | "R$ 5.999,90" -> 5999.9 | texto sem número -> null (o preço SEMPRE é lido no servidor)
+const priceNum = s => {
+  const m = String(s || '').match(/\d[\d.]*(?:,\d{1,2})?/); if (!m) return null;
+  const t = m[0], n = /^\d+\.\d{1,2}$/.test(t) ? parseFloat(t) : parseFloat(t.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+const mpFetch = (p, opt = {}) => fetch('https://api.mercadopago.com' + p, { ...opt, headers: { Authorization: 'Bearer ' + MP_TOKEN, 'Content-Type': 'application/json' } });
+const baseUrl = req => PUBLIC_URL || (req.protocol + '://' + req.get('host'));
+
+const payTries = new Map();
+app.post('/api/checkout', async (req, res) => {
+  if (!MP_TOKEN) return res.status(503).json({ error: 'O pagamento online não está ativado.' });
+  const t = payTries.get(req.ip) || { n: 0, at: Date.now() };
+  if (Date.now() - t.at > 9e5) { t.n = 0; t.at = Date.now(); }
+  if (++t.n > 20) return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos.' });
+  payTries.set(req.ip, t);
+
+  const slug = slugify(req.body.slug), v = viewOf(slug, false);
+  if (!v) return res.status(404).json({ error: 'Link inválido ou removido.' });
+  const items = [];
+  for (const a of (Array.isArray(req.body.items) ? req.body.items : []).slice(0, 30)) {
+    const p = v.products.find(x => x.id === Number(a.id)), qty = Math.floor(Number(a.qty));
+    if (!p || !(qty >= 1 && qty <= 99)) continue;
+    const unit = priceNum(p.price);
+    if (unit == null) return res.status(400).json({ error: `"${p.name}" está sem preço definido. Envie o interesse pelo WhatsApp.` });
+    items.push({ id: p.id, name: p.name, qty, unit });
+  }
+  if (!items.length) return res.status(400).json({ error: 'Seu carrinho está vazio.' });
+
+  const total = Math.round(items.reduce((s, i) => s + i.unit * i.qty, 0) * 100) / 100;
+  const ref = crypto.randomBytes(8).toString('hex');
+  const customer = String(req.body.name || '').trim().slice(0, 80), phone = String(req.body.phone || '').replace(/\D/g, '').slice(0, 15);
+  const base = baseUrl(req), back = r => `${base}/pedido.html?ref=${ref}&r=${r}`;
+  const pref = {
+    items: items.map(i => ({ id: String(i.id), title: i.name.slice(0, 250), quantity: i.qty, unit_price: i.unit, currency_id: 'BRL' })),
+    external_reference: ref, statement_descriptor: 'NCR IPHONE',
+    back_urls: { success: back('ok'), pending: back('pending'), failure: back('fail') },
+    payment_methods: { installments: MP_INSTALLMENTS, excluded_payment_types: MP_BOLETO ? [] : [{ id: 'ticket' }] }
+  };
+  if (customer) pref.payer = { name: customer };
+  if (base.startsWith('https://')) { pref.auto_return = 'approved'; pref.notification_url = base + '/api/mp/webhook'; }
+  try {
+    const r = await mpFetch('/checkout/preferences', { method: 'POST', body: JSON.stringify(pref) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.init_point) { console.error('Mercado Pago recusou a preferência:', r.status, JSON.stringify(j)); return res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente de novo ou envie pelo WhatsApp.' }); }
+    db.prepare('INSERT INTO orders(ref,slug,customer,phone,items,total) VALUES(?,?,?,?,?,?)').run(ref, slug, customer, phone, JSON.stringify(items), total);
+    res.json({ url: j.init_point, ref });
+  } catch (e) {
+    console.error('Mercado Pago:', e.message);
+    res.status(502).json({ error: 'Não foi possível iniciar o pagamento. Tente de novo ou envie pelo WhatsApp.' });
+  }
+});
+
+// Nunca confiamos no que chega no webhook: o pagamento é sempre consultado de volta na API do Mercado Pago.
+async function syncPayment(id) {
+  const r = await mpFetch('/v1/payments/' + encodeURIComponent(id));
+  if (!r.ok) throw new Error('consulta do pagamento falhou (' + r.status + ')');
+  const p = await r.json();
+  const o = db.prepare('SELECT * FROM orders WHERE ref=?').get(String(p.external_reference || ''));
+  if (!o) return;
+  let status = o.status;
+  if (p.status === 'approved') status = 'paid';
+  else if (['refunded', 'charged_back'].includes(p.status)) status = 'refunded';
+  else if (['rejected', 'cancelled'].includes(p.status)) { if (o.status !== 'paid') status = 'failed'; }
+  else if (o.status !== 'paid') status = 'pending';
+  if (status === 'paid' && Number(p.transaction_amount) + 0.005 < o.total) status = 'check';
+  db.prepare("UPDATE orders SET status=?, mp_payment_id=?, mp_method=?, paid_at=CASE WHEN ?='paid' AND paid_at='' THEN CURRENT_TIMESTAMP ELSE paid_at END WHERE ref=?")
+    .run(status, String(p.id), p.payment_type_id || '', status, o.ref);
+}
+app.post('/api/mp/webhook', (req, res) => {
+  res.sendStatus(200);
+  const q = req.query || {}, b = req.body || {}, type = b.type || q.type || q.topic;
+  const id = (b.data && b.data.id) || q['data.id'] || (q.topic === 'payment' ? q.id : null);
+  if (MP_TOKEN && type === 'payment' && id) syncPayment(id).catch(e => console.error('Webhook:', e.message));
+});
+
+// status do pedido (usado pela página /pedido.html). Se o cliente voltou do Mercado Pago com payment_id, confirma na hora.
+app.get('/api/order/:ref', async (req, res) => {
+  const get = () => db.prepare('SELECT * FROM orders WHERE ref=?').get(String(req.params.ref).slice(0, 32));
+  let o = get();
+  if (!o) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  const pid = String(req.query.payment_id || '').replace(/\D/g, '');
+  if (MP_TOKEN && pid && o.status !== 'paid') { try { await syncPayment(pid); o = get(); } catch (e) { console.error('Pedido:', e.message); } }
+  const v = viewOf(o.slug, false);
+  res.json({ ref: o.ref, slug: o.slug, status: o.status, method: o.mp_method, customer: o.customer, total: o.total, items: JSON.parse(o.items), whatsapp: (v && v.whatsapp) || settings().whatsapp });
+});
+app.get('/api/orders', auth, (q, r) => r.json(db.prepare('SELECT * FROM orders ORDER BY id DESC LIMIT 100').all().map(o => ({ ...o, items: JSON.parse(o.items) }))));
 
 app.use('/uploads', express.static(UP, { maxAge: '7d' }));
 app.use(express.static(path.join(__dirname, 'public')));
