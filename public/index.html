@@ -203,7 +203,7 @@ function card(p,phone){
   }
   if(p.price)gal.append(h('span',{class:'price'},p.price));
   const c=h('article',{class:'card'},gal,h('div',{class:'body'},tagEl(p),h('h2',{},p.name),h('p',{class:'desc'},p.description),h('span',{class:'det'},'Ver detalhes ›'),
-    h('div',{class:'acts'},addBtn(p,true),waBtn(p,phone,true))));
+    h('div',{class:'acts'},addBtn(p),waBtn(p,phone,true))));
   c.onclick=e=>{if(!e.target.closest('a,button'))openM(p,phone)};
   return c;
 }

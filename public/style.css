@@ -162,24 +162,9 @@ select:focus{outline:0;border-color:var(--y);box-shadow:0 0 0 4px rgba(255,214,1
 .nav.l{left:8px}.nav.r{right:8px}
 @media(hover:hover){.nav{display:grid;place-items:center}.card:hover .nav{opacity:1}}
 @media(max-width:600px){
-  header{padding:30px 16px 8px}
-  .logo{width:84px;height:84px;margin-bottom:12px}
-  .sub{margin:8px auto 10px}
   .bar{padding:8px 12px;gap:8px}
   .seg{width:100%}.seg button{flex:1;padding:8px 6px}
   .resn{padding:0 14px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px auto;padding:0 12px 100px}
-  .card{border-radius:20px}
-  .body{padding:12px 12px 14px;gap:6px}
-  .card h2{font-size:15px;line-height:1.25;letter-spacing:-.01em}
-  .card .desc{font-size:13px;-webkit-line-clamp:2}
-  .det{font-size:13px}
-  .price{top:8px;left:8px;font-size:12px;padding:4px 10px}
-  .more{top:8px;right:8px;font-size:11px;padding:3px 8px}
-  .dots{bottom:8px}
-  .acts{gap:6px}
-  .acts .add{padding:10px 4px;font-size:13px}
-  .btn.wa.mini{width:42px}
-  .tag{font-size:11px;padding:2px 8px}
+  .grid{padding-bottom:100px}
 }
 .sbox input{-webkit-appearance:none;appearance:none}
